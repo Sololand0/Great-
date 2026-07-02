@@ -1,0 +1,133 @@
+# Bug Bounty AI Agent — Full Prompt
+
+## System Context
+You are an expert bug bounty hunter, penetration tester, and AI agent developer.
+Your job is to build complete, production-ready tools that combine Linux security
+tools with HuggingFace AI models to automate the full bug bounty pipeline.
+
+---
+
+## Main Prompt
+
+Build a complete, ready-to-run **Bug Bounty AI Agent** in Python for Linux terminal.
+
+### Pipeline
+```
+Target → Recon → Scan → AI Analysis → Report
+```
+
+### Stage 1 — Recon
+- Subdomain enumeration using `subfinder` and optionally `amass`
+- HTTP probing with `httpx` (status codes, titles, tech detection)
+- DNS record lookup with `dig`
+- WHOIS information
+
+### Stage 2 — Scan
+- Port and service scan with `nmap -sV -sC --open -T4 --script=vuln`
+- CVE/exposure scan with `nuclei -t cves,exposures,vulnerabilities,misconfiguration`
+- HTTP security headers check via `curl -sI`
+- Directory fuzzing with `ffuf` using a local wordlist
+- Optional: SQL injection check with `sqlmap`
+- Optional: SSL/TLS audit with `testssl.sh`
+
+### Stage 3 — AI Analysis (HuggingFace)
+- Connect to HuggingFace Inference API using `huggingface_hub`
+- Support these models (selectable via `--model`):
+  - `Qwen/Qwen2.5-72B-Instruct` (default, best reasoning)
+  - `mistralai/Mistral-7B-Instruct-v0.3`
+  - `meta-llama/Llama-3-8B-Instruct`
+  - Local GGUF model via `llama-cpp-python`
+- Send all scan outputs to the AI model
+- Ask AI to return structured JSON array of vulnerabilities:
+  ```json
+  [
+    {
+      "name": "...",
+      "cve": "CVE-XXXX-XXXXX or N/A",
+      "severity": "critical|high|medium|low|info",
+      "cvss": 9.8,
+      "affected": "...",
+      "description": "...",
+      "impact": "...",
+      "poc": "...",
+      "recommendation": "...",
+      "references": ["url1", "url2"]
+    }
+  ]
+  ```
+- Compute a risk score (0–100) weighted by severity
+- Generate a 3-paragraph executive summary
+
+### Stage 4 — Report
+- Generate full professional Markdown report using AI
+- Save three files:
+  - `report_<target>_<timestamp>.md` — full professional report
+  - `vulns_<target>_<timestamp>.json` — structured vulnerability data
+  - `raw_scan_<target>_<timestamp>.txt` — raw tool outputs
+
+### CLI Interface
+```bash
+python bug_bounty_agent.py <target> [options]
+
+Options:
+  --token     HuggingFace API token (or set HF_TOKEN env var)
+  --model     HF model ID or path to .gguf file
+  --output    Output directory (default: ./bb_reports)
+  --wordlist  Path to ffuf wordlist
+  --deep      Enable deep recon with amass
+  --sqlmap    Enable sqlmap scan
+  --no-fuzz   Skip directory fuzzing
+```
+
+### Code Requirements
+- Color-coded terminal output (info/ok/warn/err/ai prefixes)
+- Graceful fallback if a tool is not installed (`check_tool()`)
+- Subprocess timeout handling for every tool call
+- JSON parsing with fallback for malformed AI output
+- Token trimming to avoid HuggingFace context limits
+- All output saved to a timestamped directory
+
+### Installation
+```bash
+# Python deps
+pip install huggingface_hub
+
+# Optional local model
+pip install llama-cpp-python
+huggingface-cli download TheBloke/Mistral-7B-Instruct-v0.1-GGUF \
+  mistral-7b-instruct-v0.1.Q4_K_M.gguf --local-dir ./models
+
+# Go tools
+go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
+go install github.com/ffuf/ffuf/v2@latest
+
+# System tools
+sudo apt install nmap whois dnsutils curl -y
+
+# Set token
+export HF_TOKEN="hf_xxxxxxxxxxxx"
+```
+
+### Example Usage
+```bash
+# Basic
+python bug_bounty_agent.py testphp.vulnweb.com
+
+# Full scan with all options
+python bug_bounty_agent.py example.com \
+  --model Qwen/Qwen2.5-72B-Instruct \
+  --deep --sqlmap \
+  --output ./my_reports
+
+# Fully offline with local model
+python bug_bounty_agent.py example.com \
+  --model ./models/mistral-7b.Q4_K_M.gguf
+```
+
+### Important
+- Only scan targets you have explicit written permission to test
+- The agent must handle missing tools gracefully without crashing
+- Trim all tool outputs to stay within AI model token limits
+- Use `temperature=0.2` for consistent, technical AI responses
